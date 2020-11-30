@@ -1,7 +1,6 @@
-## CALIB.PY
-# Thomas W. C. Carlson, 2020
-# Takes in a single stereo image, splits it in half, locates the chessboard, undistorts the image, and returns camera parameters
-
+## COGCALIB.PY
+# Thomas W. C. Carlson
+# Takes in 2 images from 2 cameras set up in stereo configuration, locates a chessboard in the image, undistorts the image, and returns camera parameters
 
 # python -m pip install opencv-python
 import cv2 as cv
@@ -12,7 +11,7 @@ import glob
 from tqdm import tqdm
 
 # Calibration
-chessboard_size = (4,7)
+chessboard_size = (5,7)
 
 # Array definitions
 # Left image arrays
@@ -28,63 +27,38 @@ objpR = np.zeros((np.prod(chessboard_size),3),dtype=np.float32)
 objpR[:,:2] = np.mgrid[0:chessboard_size[0],0:chessboard_size[1]].T.reshape(-1,2)
 
 # Read calibration image set
-calibration_paths = glob.glob('../IMAGES/calib3/*.jpg')
+calibration_pathsL = glob.glob('../IMAGES/CognexSet3/LeftImages/*.bmp')
+calibration_pathsR = glob.glob('../IMAGES/CognexSet3/RightImages/*.bmp')
 FoundCornerCountL = 0
 FoundCornerCountR = 0
 
-# Find the chessboard corners
-for image_path in tqdm(calibration_paths):
+# Find chessboard corners in left image set
+for image_path in tqdm(calibration_pathsL):
     # Load the image
     print(image_path)
-    image = cv.imread(image_path)
-    Y, X, Ch = image.shape
-    # Split the image
-    imageL = image[0:int(Y), 0:int(X/2)]
-    imageR = image[0:int(Y), int(X/2):int(X)]
+    imageL = cv.imread(image_path)
     # Convert to grayscale
     imageLg = cv.cvtColor(imageL, cv.COLOR_BGR2GRAY)
-    imageRg = cv.cvtColor(imageR, cv.COLOR_BGR2GRAY)
-    #debug
+    #debug 
     # imageLg = cv.resize(imageLg, (1000,1000))
-    # imageRg = cv.resize(imageRg, (1000,1000))
     # cv.imshow("Image L", imageLg)
-    # cv.waitKey(1000)
-    # cv.imshow("Image R", imageRg)
-    # cv.waitKey(1000)
-    # Process the images
+    # cv.waitKey(500)
+    # Process the image
     imageLg = cv.GaussianBlur(imageLg, (5,5), -2)
     imageLg = cv.addWeighted(imageLg, 1.5, imageLg, -0.5, 0, None)
-    imageRg = cv.GaussianBlur(imageRg, (5,5), -2)
-    imageRg = cv.addWeighted(imageRg, 1.5, imageRg, -0.5, 0, None)
-    #debug
-    # imageLg = cv.resize(imageLg, (1000,1000))
-    # imageRg = cv.resize(imageRg, (1000,1000))
-    # cv.imshow("Image L", imageLg)
-    # cv.waitKey(1000)
-    # cv.imshow("Image R", imageRg)
-    # cv.waitKey(1000)
+    # Find the chessboard
     retL, cornersL = cv.findChessboardCornersSB(imageLg, chessboard_size, None, None)
     cv.drawChessboardCorners(imageLg, chessboard_size, cornersL, retL)
-    retR, cornersR = cv.findChessboardCornersSB(imageRg, chessboard_size, None, None)
-    cv.drawChessboardCorners(imageRg, chessboard_size, cornersR, retR)
     #debug
     # imageLg = cv.resize(imageLg, (1000,1000))
-    # imageRg = cv.resize(imageRg, (1000,1000))
     # cv.imshow("Image L", imageLg)
     # cv.waitKey(500)
-    # cv.imshow("Image R", imageRg)
-    # cv.waitKey(500)
 
     if retL == True:
+        # Found a corner, count it
         FoundCornerCountL += 1
-    
-    if retR == True:
-        FoundCornerCountR += 1
-
-    # If a chessboard is found, refine the corner area for subpixel accuracy
-    if retL == True:
         print("Chessboard found in image left half.")
-        # Define criteria
+        # Refining for subpixel accuracy
         criteriaL = (cv.TERM_CRITERIA_EPS + cv.TERM_CRITERIA_MAX_ITER, 30, 0.01)
         cornersL2 = cv.cornerSubPix(imageLg, cornersL, (3,3), (-1,-1), criteriaL)
         obj_pointsL.append(objpL)
@@ -93,44 +67,61 @@ for image_path in tqdm(calibration_paths):
         imageLg = cv.cvtColor(imageLg, cv.COLOR_GRAY2BGR)
         cv.drawChessboardCorners(imageLg, chessboard_size, cornersL2, retL)
         #debug
-        # imageLgdisp = cv.resize(imageLg, (1000,1000))
-        # cv.imshow('Image Left Half', imageLgdisp)
-        # cv.waitKey(250)
+        imageLgdisp = cv.resize(imageLg, (1000,1000))
+        cv.imshow('Image Left Half', imageLgdisp)
+        cv.waitKey(500)
         imageLg = cv.cvtColor(imageLg, cv.COLOR_BGR2GRAY)
 
+# Find chessboard corners in right image set
+for image_path in tqdm(calibration_pathsR):
+    # Load the image
+    print(image_path)
+    imageR = cv.imread(image_path)
+    # Convert to grayscale
+    imageRg = cv.cvtColor(imageR, cv.COLOR_BGR2GRAY)
+    #debug 
+    imageRg = cv.resize(imageRg, (1000,1000))
+    cv.imshow("Image R", imageRg)
+    cv.waitKey(500)
+    # Process the image
+    imageRg = cv.GaussianBlur(imageRg, (5,5), -2)
+    imageRg = cv.addWeighted(imageRg, 1.5, imageRg, -0.5, 0, None)
+    # Find the chessboard
+    retR, cornersR = cv.findChessboardCornersSB(imageRg, chessboard_size, None, None)
+    cv.drawChessboardCorners(imageRg, chessboard_size, cornersR, retR)
+    #debug
+    imageRg = cv.resize(imageRg, (1000,1000))
+    cv.imshow("Image R", imageRg)
+    cv.waitKey(500)
+
     if retR == True:
+        # Found a corner, count it
+        FoundCornerCountR += 1
         print("Chessboard found in image right half.")
-        # Define criteria
+        # Refining for subpixel accuracy
         criteriaR = (cv.TERM_CRITERIA_EPS + cv.TERM_CRITERIA_MAX_ITER, 30, 0.01)
         cornersR2 = cv.cornerSubPix(imageRg, cornersR, (3,3), (-1,-1), criteriaR)
         obj_pointsR.append(objpR)
         img_pointsR.append(cornersR)
         # Update with new corners
         imageRg = cv.cvtColor(imageRg, cv.COLOR_GRAY2BGR)
-        cv.drawChessboardCorners(imageRg, chessboard_size, cornersR2, retR)
+        cv.drawChessboardCorners(imageRg, chessboard_size, cornersR2, retL)
         #debug
-        # imageRgdisp = cv.resize(imageRg, (1000,1000))
-        # cv.imshow('Image Right Half', imageRgdisp)
-        # cv.waitKey(250)
+        imageRgdisp = cv.resize(imageRg, (1000,1000))
+        cv.imshow('Image Right Half', imageRgdisp)
+        cv.waitKey(500)
         imageRg = cv.cvtColor(imageRg, cv.COLOR_BGR2GRAY)
 
-cv.destroyAllWindows()
-# How many images yielded calibration inputs?
+# Display number of corners found
 print(FoundCornerCountL)
 print(FoundCornerCountR)
 
-# Calibrate camera for each lensxc
-print("Beginning calibration...")
+# Calibrate camera for each lens
+print("Calibrating...")
 retL, CmatrixL, distCoeffsL, rvecsL, tvecsL = cv.calibrateCamera(obj_pointsL, img_pointsL, imageLg.shape[::-1], None, None)
 print("Left calibration complete.")
 retR, CmatrixR, distCoeffsR, rvecsR, tvecsR = cv.calibrateCamera(obj_pointsR, img_pointsR, imageRg.shape[::-1], None, None)
 print("Right calibration complete.")
-
-# print(retL)
-# print(CmatrixL)
-# print(distCoeffsL)
-# print(rvecsL)
-# print(tvecsL)
 
 # Save the outputs
 # Left
@@ -146,12 +137,9 @@ np.save('./calibParams/distCoeffsR', distCoeffsR)
 np.save('./calibParams/rvecsR', rvecsR)
 np.save('./calibParams/tvecsR', tvecsR)
 
-
 # Use the calculated data to undistort an image from the dataset to estimate error
-RMSImage = cv.imread('../IMAGES/calib3/IMGP1803.jpg')
-RY, RX, RCh = RMSImage.shape
-RMSImageL = RMSImage[0:int(RY), 0:int(RX/2)]
-RMSImageR = RMSImage[0:int(RY), int(RX/2):int(RX)]
+RMSImageL = cv.imread('../IMAGES/CognexSet2/LeftImages/Image00010.bmp')
+RMSImageR = cv.imread('../IMAGES/CognexSet2/RightImages/Image00010.bmp')
 RYL, RXL, RChL = RMSImageL.shape
 RYR, RXR, RChR = RMSImageR.shape
 
@@ -167,7 +155,6 @@ cv.waitKey(0)
 cv.imshow('post', RMSLUnDist)
 cv.waitKey(0)
 
-# Calculate RMS error
 mean_errorL = 0
 for i in range(len(obj_pointsL)):
     img_pointsL2, _ = cv.projectPoints(obj_pointsL[i], rvecsL[i], tvecsL[i], CmatrixL, distCoeffsL)
@@ -176,8 +163,6 @@ for i in range(len(obj_pointsL)):
 
 # Display RMS
 print( "total error (lower is better): {}".format(mean_errorL/len(obj_pointsL)))
-
-# Export the calibration data (TODO)
 
 # # cv.calibrateCamera's ret value is a reprojection error estimate
 print("Return L:" + str(retL))
@@ -190,7 +175,7 @@ print(CmatrixL)
 print("Camera matrix R:")
 print(CmatrixR)
 
-# # Focal length debug
+# Focal length debug
 FxL = CmatrixL[1,1]*23.5/(X)
 print(FxL)
 FyL = CmatrixL[1,2]*15.6/(Y)
